@@ -1,54 +1,52 @@
 variable "REGISTRY" {
-    default = "ghcr.io/drengskapur"
+    default = "ghcr.io"
 }
 
-variable "REPOSITORY" {
+variable "OWNER" {
+    default = "drengskapur"
+}
+
+variable "IMAGE" {
     default = "kasmweb-windsurf"
 }
 
-variable "KASMWEB_IMAGE" {
-    default = "kasmweb/desktop:develop"
-}
-
-variable "KASMVNC_VERSION" {
-    default = "1.3.3"
-}
-
-variable "VERSION" {
+variable "TAG" {
     default = "develop"
 }
 
-variable "TAGS" {
-    default = [
-        "${REGISTRY}/${REPOSITORY}:${VERSION}",
-        "${REGISTRY}/${REPOSITORY}:develop"
-    ]
+variable "BASE_IMAGE" {
+    default = "kasmweb/desktop:1.16.1"
+}
+
+# Function to get build timestamp
+function "timestamp" {
+    params = []
+    result = formatdate("YYYY-MM-DD'T'hh:mm:ssZ", timestamp())
+}
+
+# Common metadata for all targets
+variable "METADATA" {
+    default = {
+        "org.opencontainers.image.created" = "${timestamp()}"
+        "org.opencontainers.image.source"  = "https://github.com/drengskapur/docker-kasmweb-windsurf"
+        "org.opencontainers.image.version" = "${TAG}"
+    }
 }
 
 # Default target
 group "default" {
-    targets = ["windsurf"]
+    targets = ["develop"]
 }
 
-# Common settings
-target "windsurf" {
+# Main development build
+target "develop" {
     dockerfile = "Dockerfile"
     platforms = ["linux/amd64"]
-    tags = TAGS
+    tags = [
+        "${REGISTRY}/${OWNER}/${IMAGE}:${TAG}",
+        "${REGISTRY}/${OWNER}/${IMAGE}:latest"
+    ]
     args = {
-        KASMWEB_IMAGE = "${KASMWEB_IMAGE}"
-        KASMVNC_VERSION = "${KASMVNC_VERSION}"
+        BASE_IMAGE = "${BASE_IMAGE}"
     }
-}
-
-# Development build
-target "dev" {
-    inherits = ["windsurf"]
-    output = ["type=docker"]
-}
-
-# Production build
-target "prod" {
-    inherits = ["windsurf"]
-    output = ["type=registry"]
 }
