@@ -1,5 +1,7 @@
 {
     "recommendations": [
-        "hashicorp.hcl"
+        "hashicorp.hcl",
+        "github.copilot",
+        "github.copilot-chat"
     ]
 }
