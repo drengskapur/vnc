@@ -7,5 +7,4 @@
 
 # Local development
 .env
-.actrc
 bin/
