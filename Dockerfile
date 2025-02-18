@@ -360,15 +360,11 @@ error() {
 : "\${VNC_RESOLUTION:=1920x1080}"
 : "\${VNC_PORT:=6901}"
 : "\${DISPLAY:=:1}"
-
-# Generate random VNC password
-if ! VNC_PASSWORD=\$(head -c 12 /dev/urandom | base64); then
-    error "Failed to generate VNC password"
-fi
+: "\${VNC_PW:=\$(head -c 12 /dev/urandom | base64)}"
 
 # Configure VNC
 mkdir -p "\$HOME/.vnc"
-echo -e "\$VNC_PASSWORD\n\$VNC_PASSWORD\n" | vncpasswd
+echo -e "\${VNC_PW}\n\${VNC_PW}\n" | vncpasswd
 chmod 600 "\$HOME/.vnc/passwd"
 
 # Create supervisor config
