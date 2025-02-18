@@ -136,9 +136,9 @@ ARGS=()
 # Set tags based on version or tag override
 VERSION=$(detect_version)
 if [[ -n "$TAG" ]]; then
-    TAGS="[\"${REGISTRY}/${REPOSITORY}:${TAG}\", \"${REGISTRY}/${REPOSITORY}:develop\"]"
+    TAGS="${REGISTRY}/${REPOSITORY}:${TAG},${REGISTRY}/${REPOSITORY}:develop"
 else
-    TAGS="[\"${REGISTRY}/${REPOSITORY}:${VERSION}\", \"${REGISTRY}/${REPOSITORY}:develop\"]"
+    TAGS="${REGISTRY}/${REPOSITORY}:${VERSION},${REGISTRY}/${REPOSITORY}:develop"
 fi
 ARGS+=(--set "*.tags=${TAGS}")
 
