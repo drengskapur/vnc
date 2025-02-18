@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Get project root directory (parent of scripts directory)
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# Get project root directory
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Script configuration
 REGISTRY="${REGISTRY:-ghcr.io/drengskapur}"
@@ -133,14 +133,11 @@ docker buildx use "$BUILDER"
 # Prepare build arguments
 ARGS=()
 
-# Set tags based on version or tag override
+# Set version/tag as environment variables for bake file
 VERSION=$(detect_version)
 if [[ -n "$TAG" ]]; then
-    TAGS="[\\\"${REGISTRY}/${REPOSITORY}:${TAG}\\\",\\\"${REGISTRY}/${REPOSITORY}:develop\\\"]"
-else
-    TAGS="[\\\"${REGISTRY}/${REPOSITORY}:${VERSION}\\\",\\\"${REGISTRY}/${REPOSITORY}:develop\\\"]"
+    export VERSION="$TAG"
 fi
-ARGS+=(--set "*.tags=${TAGS}")
 
 # Add platforms
 ARGS+=(--set "*.platform=${PLATFORMS}")
@@ -155,9 +152,9 @@ fi
 # Execute build
 log "Building Windsurf image (${COMMAND})"
 if [[ "$COMMAND" == "dev" ]]; then
-    docker buildx bake --allow=fs=/tmp -f "${PROJECT_ROOT}/docker-bake.hcl" "${ARGS[@]}" dev
+    docker buildx bake -f "${PROJECT_ROOT}/docker-bake.hcl" "${ARGS[@]}" dev
 else
-    docker buildx bake --allow=fs=/tmp -f "${PROJECT_ROOT}/docker-bake.hcl" "${ARGS[@]}" prod
+    docker buildx bake -f "${PROJECT_ROOT}/docker-bake.hcl" "${ARGS[@]}" prod
 fi
 
 log "Build completed successfully"

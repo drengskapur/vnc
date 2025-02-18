@@ -33,11 +33,7 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.REGISTRY_TOKEN_GH_ACTIONS }}
 
-      - name: Build and push
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:develop
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
+      - name: Build and push using build script
+        run: |
+          chmod +x ./build.sh
+          ./build.sh --push dev

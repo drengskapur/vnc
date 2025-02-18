@@ -41,18 +41,14 @@ target "windsurf" {
     }
 }
 
-# Development build with caching enabled
+# Development build
 target "dev" {
     inherits = ["windsurf"]
-    cache-from = ["type=local,src=.cache/buildx"]
-    cache-to = ["type=local,dest=.cache/buildx"]
     output = ["type=docker"]
 }
 
-# Production build with registry caching
+# Production build
 target "prod" {
     inherits = ["windsurf"]
-    cache-from = ["type=registry,ref=windsurf:cache"]
-    cache-to = ["type=registry,ref=windsurf:cache,mode=max"]
     output = ["type=registry"]
 }
