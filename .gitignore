@@ -7,3 +7,4 @@
 
 # Local development
 .env
+.actrc
