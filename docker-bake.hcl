@@ -3,7 +3,7 @@ variable "KASMWEB_IMAGE" {
 }
 
 variable "TAGS" {
-    default = ["windsurf:latest"]
+    default = ["windsurf:develop"]
 }
 
 # Default target

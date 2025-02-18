@@ -19,7 +19,7 @@ detect_version() {
             return 0
         fi
     fi
-    echo "latest"
+    echo "develop"
 }
 
 # Logging functions
@@ -136,9 +136,9 @@ ARGS=()
 # Set tags based on version or tag override
 VERSION=$(detect_version)
 if [[ -n "$TAG" ]]; then
-    TAGS="[\"${REGISTRY}/${REPOSITORY}:${TAG}\", \"${REGISTRY}/${REPOSITORY}:latest\"]"
+    TAGS="[\"${REGISTRY}/${REPOSITORY}:${TAG}\", \"${REGISTRY}/${REPOSITORY}:develop\"]"
 else
-    TAGS="[\"${REGISTRY}/${REPOSITORY}:${VERSION}\", \"${REGISTRY}/${REPOSITORY}:latest\"]"
+    TAGS="[\"${REGISTRY}/${REPOSITORY}:${VERSION}\", \"${REGISTRY}/${REPOSITORY}:develop\"]"
 fi
 ARGS+=(--set "*.tags=${TAGS}")
 
