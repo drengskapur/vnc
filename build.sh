@@ -10,10 +10,6 @@ if ! command -v act &> /dev/null; then
     if [[ ":$PATH:" != *":$HOME/.local/bin:"* ]]; then
         export PATH="$HOME/.local/bin:$PATH"
     fi
-    
-    # Setup default act configuration
-    mkdir -p "$HOME/.config/act"
-    echo "-P ubuntu-latest=catthehacker/ubuntu:act-latest" > "$HOME/.config/act/actrc"
 fi
 
 # Create builder instance if it doesn't exist
