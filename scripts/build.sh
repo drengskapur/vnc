@@ -133,17 +133,14 @@ docker buildx use "$BUILDER"
 # Prepare build arguments
 ARGS=()
 
-# Add registry and repository
-ARGS+=(--set "REGISTRY=$REGISTRY")
-ARGS+=(--set "REPOSITORY=$REPOSITORY")
-
-# Add tag if specified, otherwise use detected version
+# Set tags based on version or tag override
+VERSION=$(detect_version)
 if [[ -n "$TAG" ]]; then
-    ARGS+=(--set "TAG=$TAG")
+    TAGS="[\"${REGISTRY}/${REPOSITORY}:${TAG}\", \"${REGISTRY}/${REPOSITORY}:latest\"]"
 else
-    VERSION=$(detect_version)
-    ARGS+=(--set "VERSION=$VERSION")
+    TAGS="[\"${REGISTRY}/${REPOSITORY}:${VERSION}\", \"${REGISTRY}/${REPOSITORY}:latest\"]"
 fi
+ARGS+=(--set "*.tags=${TAGS}")
 
 # Add platforms
 ARGS+=(--set "*.platform=${PLATFORMS}")
