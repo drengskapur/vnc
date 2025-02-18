@@ -10,6 +10,18 @@ REPOSITORY="${REPOSITORY:-drengskapur/kasmweb-windsurf}"
 PLATFORMS="${PLATFORMS:-linux/amd64}"
 COMMAND="${COMMAND:-dev}"  # Set dev as default command
 
+# Detect version from package if available
+detect_version() {
+    if command -v apt-cache >/dev/null 2>&1; then
+        VERSION=$(apt-cache show windsurf 2>/dev/null | grep Version | cut -d' ' -f2 | cut -d'-' -f1)
+        if [[ -n "$VERSION" ]]; then
+            echo "$VERSION"
+            return 0
+        fi
+    fi
+    echo "latest"
+}
+
 # Logging functions
 log() {
     echo "[$(date +'%Y-%m-%d %H:%M:%S')] $*" >&2
@@ -121,9 +133,12 @@ docker buildx use "$BUILDER"
 # Prepare build arguments
 ARGS=()
 
-# Add tag if specified
+# Add tag if specified, otherwise use detected version
 if [[ -n "$TAG" ]]; then
     ARGS+=(--set "*.tags=${REGISTRY}/${REPOSITORY}:${TAG}")
+else
+    VERSION=$(detect_version)
+    ARGS+=(--set "*.version=$VERSION")
 fi
 
 # Add platforms

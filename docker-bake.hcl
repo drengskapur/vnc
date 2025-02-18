@@ -6,18 +6,8 @@ variable "TAG" {
     default = ""
 }
 
-# Get Windsurf version from package
-function "get_version" {
-    params = []
-    result = regex_replace(
-        regex_replace(
-            run("apt-cache show windsurf | grep Version | cut -d' ' -f2 | cut -d'-' -f1"),
-            "\n",
-            ""
-        ),
-        "\r",
-        ""
-    )
+variable "VERSION" {
+    default = "latest"
 }
 
 # Default target
@@ -30,7 +20,7 @@ target "windsurf" {
     dockerfile = "Dockerfile"
     platforms = ["linux/amd64"]
     tags = [
-        "windsurf:${TAG != "" ? TAG : get_version()}",
+        "windsurf:${TAG != "" ? TAG : VERSION}",
         "windsurf:latest"
     ]
     args = {
