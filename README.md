@@ -32,16 +32,28 @@ The container is accessible via a browser at: `https://IP_OF_SERVER:6901`
 
 ## Local Development
 
+### Setup
+
+Run the setup script to install development tools:
+
+```bash
+./setup.sh
+```
+
+This will install:
+- Task (taskfile.dev) for build automation
+
 ### Testing GitHub Actions
 
-You can test the CI workflow locally using [act](https://github.com/nektos/act). Install it first:
+The script will automatically install `act` in `$HOME/.local/bin` if it's not found. You can also install it manually:
 
 ```bash
 # macOS
 brew install act
 
 # Linux
-curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
+mkdir -p "$HOME/.local/bin"
+curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | bash -s -- -b "$HOME/.local/bin"
 ```
 
 Then run the workflow test:
