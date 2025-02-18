@@ -1,9 +1,39 @@
 # syntax=docker/dockerfile:1
+
+# Global build arguments
 ARG KASMVNC_VERSION=1.3.3
 ARG BASE_IMAGE=ubuntu:22.04
+ARG KASMWEB_IMAGE=kasmweb/desktop:develop
+
+FROM ${KASMWEB_IMAGE}
+
+USER root
+
+# Install windsurf and dependencies
+RUN apt-get update && \
+    curl -fsSL "https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/windsurf.gpg" | \
+    gpg --dearmor -o /usr/share/keyrings/windsurf-stable-archive-keyring.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/windsurf-stable-archive-keyring.gpg arch=amd64] https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/apt stable main" | \
+    tee /etc/apt/sources.list.d/windsurf.list > /dev/null && \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    windsurf \
+    && rm -rf /var/lib/apt/lists/*
+
+# Switch back to default user
+USER 1000
+
+# Set display name for window manager
+ENV MAXIMIZE=true \
+    MAXIMIZE_NAME="Windsurf" \
+    START_COMMAND="/usr/bin/windsurf" \
+    PGREP="windsurf"
 
 # Base stage with shared environment
 FROM ubuntu:22.04@sha256:77906da86b60585ce12215807090eb327e7386c8fafb5402369e421f44eff17e AS base
+
+# Define build arguments
+ARG KASMVNC_VERSION=1.3.3
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
@@ -70,16 +100,25 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
 
 # Install KasmVNC and extract Windsurf desktop files
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    wget -q "https://github.com/kasmtech/KasmVNC/releases/download/v${KASMVNC_VERSION}/kasmvncserver_jammy_${KASMVNC_VERSION}_amd64.deb" -O kasmvnc.deb \
-    && apt-get install -y --no-install-recommends ./kasmvnc.deb \
-    && rm kasmvnc.deb \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    apt-get update && \
+    apt-get install -y --no-install-recommends ca-certificates gnupg curl wget && \
+    wget -q "https://github.com/kasmtech/KasmVNC/releases/download/v${KASMVNC_VERSION}/kasmvncserver_jammy_${KASMVNC_VERSION}_amd64.deb" -O kasmvnc.deb && \
+    apt-get install -y --no-install-recommends ./kasmvnc.deb && \
+    rm kasmvnc.deb && \
+    # Add Windsurf repository
+    curl -fsSL "https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/windsurf.gpg" | \
+        gpg --dearmor -o /usr/share/keyrings/windsurf-stable-archive-keyring.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/windsurf-stable-archive-keyring.gpg arch=amd64] https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/apt stable main" | \
+        tee /etc/apt/sources.list.d/windsurf.list > /dev/null && \
     # Extract Windsurf desktop file and icon
-    && apt-get download windsurf \
-    && dpkg-deb -x windsurf_*_amd64.deb /tmp/windsurf-extracted \
-    && cp /tmp/windsurf-extracted/usr/share/applications/windsurf.desktop /usr/share/applications/ \
-    && cp /tmp/windsurf-extracted/usr/share/pixmaps/windsurf.png /usr/share/pixmaps/ \
-    && rm -rf /tmp/windsurf-extracted windsurf_*_amd64.deb \
-    && rm -rf /var/lib/apt/lists/*
+    apt-get update && \
+    apt-get download windsurf && \
+    dpkg-deb -x windsurf_*_amd64.deb /tmp/windsurf-extracted && \
+    cp /tmp/windsurf-extracted/usr/share/applications/windsurf.desktop /usr/share/applications/ && \
+    cp /tmp/windsurf-extracted/usr/share/pixmaps/windsurf.png /usr/share/pixmaps/ && \
+    rm -rf /tmp/windsurf-extracted windsurf_*_amd64.deb && \
+    rm -rf /var/lib/apt/lists/*
 
 # Add i3 config
 COPY <<EOF ${HOME}/.config/i3/config
@@ -376,22 +415,7 @@ stderr_logfile=/var/log/supervisor/windsurf.err
 startretries=3
 startsecs=5
 stopwaitsecs=10
-
-[program:profile-sync]
-command=/usr/local/bin/profile_sync.sh watch
-user=windsurf
-environment=HOME="/home/windsurf",USER="windsurf"
-autorestart=true
-priority=4
-stdout_logfile=/var/log/supervisor/profile-sync.log
-stderr_logfile=/var/log/supervisor/profile-sync.err
-startretries=3
-startsecs=5
-stopwaitsecs=10
 EOSUPERVISOR
-
-# Initialize profile sync
-/usr/local/bin/profile_sync.sh init
 
 # Start pulseaudio for audio support
 pulseaudio --start
@@ -413,62 +437,11 @@ EOF
 
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
-# Add profile sync script
-COPY <<EOF /usr/local/bin/profile_sync.sh
-#!/bin/bash
-set -euo pipefail
-
-PROFILE_DIR="\$HOME/.config/windsurf"
-BACKUP_DIR="/app/profile-backup"
-
-init() {
-    mkdir -p "\$BACKUP_DIR"
-    if [ -d "\$PROFILE_DIR" ]; then
-        cp -r "\$PROFILE_DIR"/* "\$BACKUP_DIR"/ 2>/dev/null || true
-    fi
-}
-
-watch() {
-    while true; do
-        if [ -d "\$PROFILE_DIR" ]; then
-            rsync -av --delete "\$PROFILE_DIR"/ "\$BACKUP_DIR"/ 2>/dev/null || true
-        fi
-        sleep 60
-    done
-}
-
-case "\${1:-}" in
-    init)
-        init
-        ;;
-    watch)
-        watch
-        ;;
-    *)
-        echo "Usage: \$0 {init|watch}"
-        exit 1
-        ;;
-esac
-EOF
-
-RUN chmod +x /usr/local/bin/profile_sync.sh
-
-# Install Windsurf
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    curl -fsSL "https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/windsurf.gpg" | \
-        gpg --dearmor -o /usr/share/keyrings/windsurf-stable-archive-keyring.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/windsurf-stable-archive-keyring.gpg arch=amd64] https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/apt stable main" | \
-        tee /etc/apt/sources.list.d/windsurf.list > /dev/null && \
-    apt-get update && \
-    apt-get install -y windsurf && \
-    rm -rf /var/lib/apt/lists/*
-
 # Final setup and permissions
 RUN mkdir -p /app "${HOME}/.config/windsurf" \
     && touch "${HOME}/.config/windsurf/onboarding.json.lock" \
     && chown -R windsurf:windsurf "${HOME}" "${STARTUPDIR}" /app \
-    && chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/profile_sync.sh
+    && chmod +x /usr/local/bin/entrypoint.sh
 
 # Expose ports
 EXPOSE ${VNC_PORT}
