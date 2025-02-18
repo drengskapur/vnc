@@ -5,8 +5,8 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 # Script configuration
-REGISTRY="${REGISTRY:-ghcr.io}"
-REPOSITORY="${REPOSITORY:-drengskapur/kasmweb-windsurf}"
+REGISTRY="${REGISTRY:-ghcr.io/drengskapur}"
+REPOSITORY="${REPOSITORY:-kasmweb-windsurf}"
 PLATFORMS="${PLATFORMS:-linux/amd64}"
 COMMAND="${COMMAND:-dev}"  # Set dev as default command
 
