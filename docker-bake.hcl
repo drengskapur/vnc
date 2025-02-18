@@ -1,9 +1,28 @@
+variable "REGISTRY" {
+    default = "ghcr.io/drengskapur"
+}
+
+variable "REPOSITORY" {
+    default = "kasmweb-windsurf"
+}
+
 variable "KASMWEB_IMAGE" {
     default = "kasmweb/desktop:develop"
 }
 
+variable "KASMVNC_VERSION" {
+    default = "1.3.3"
+}
+
+variable "VERSION" {
+    default = "develop"
+}
+
 variable "TAGS" {
-    default = ["windsurf:develop"]
+    default = [
+        "${REGISTRY}/${REPOSITORY}:${VERSION}",
+        "${REGISTRY}/${REPOSITORY}:develop"
+    ]
 }
 
 # Default target
@@ -15,17 +34,18 @@ group "default" {
 target "windsurf" {
     dockerfile = "Dockerfile"
     platforms = ["linux/amd64"]
-    tags = "${TAGS}"
+    tags = TAGS
     args = {
         KASMWEB_IMAGE = "${KASMWEB_IMAGE}"
+        KASMVNC_VERSION = "${KASMVNC_VERSION}"
     }
 }
 
 # Development build with caching enabled
 target "dev" {
     inherits = ["windsurf"]
-    cache-from = ["type=local,src=/tmp/.buildx-cache"]
-    cache-to = ["type=local,dest=/tmp/.buildx-cache"]
+    cache-from = ["type=local,src=.cache/buildx"]
+    cache-to = ["type=local,dest=.cache/buildx"]
     output = ["type=docker"]
 }
 
