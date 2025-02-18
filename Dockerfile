@@ -314,152 +314,146 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     && apt-get autoremove -y \
     && rm -rf /var/lib/apt/lists/*
 
-# Copy remaining configuration files
-COPY packages/shared/scripts/*.sh "${STARTUPDIR}/"
-
-# Add maximize window script
-COPY <<EOF ${MAXIMIZE_SCRIPT}
+# Configure entrypoint
+COPY <<EOF /usr/local/bin/entrypoint.sh
 #!/bin/bash
+
+# Exit on error, undefined variables, and pipe failures
 set -euo pipefail
 
-# Function to maximize window
-maximize_window() {
-    WINDOW_ID=$(xdotool search --name "$MAXIMIZE_NAME" | head -n 1)
-    if [[ -n "$WINDOW_ID" ]]; then
-        xdotool windowsize "$WINDOW_ID" 100% 100%
-        xdotool windowmove "$WINDOW_ID" 0 0
-        return 0
-    fi
-    return 1
+# Logging functions
+log() {
+    echo "[$(date +'%Y-%m-%d %H:%M:%S')] \$*" >&2
 }
 
-# Try to maximize immediately in case window exists
-maximize_window || {
-    # Wait for window creation events and try to maximize
-    while IFS= read -r LINE; do
-        if [[ "$LINE" =~ .*CREATE.* ]]; then
-            sleep 0.5  # Brief pause to let window fully initialize
-            maximize_window && break
-        fi
-    done < <(inotifywait -m -e create /proc/*/fd 2>/dev/null)
-}
-EOF
-
-# Add custom startup script
-COPY <<EOF ${STARTUPDIR}/custom_startup.sh
-#!/usr/bin/env bash
-set -ex
-
-START_COMMAND="/usr/bin/windsurf"
-PGREP="windsurf"
-export MAXIMIZE="true"
-export MAXIMIZE_NAME="Windsurf"
-MAXIMIZE_SCRIPT=${MAXIMIZE_SCRIPT}
-DEFAULT_ARGS=""
-ARGS=\${APP_ARGS:-\$DEFAULT_ARGS}
-
-options=\$(getopt -o gau: -l go,assign,url: -n "\$0" -- "\$@") || exit
-eval set -- "\$options"
-
-while [[ \$1 != -- ]]; do
-    case \$1 in
-    -g | --go)
-        GO='true'
-        shift 1
-        ;;
-    -a | --assign)
-        ASSIGN='true'
-        shift 1
-        ;;
-    -u | --url)
-        OPT_URL=\$2
-        shift 2
-        ;;
-    *)
-        echo "bad option: \$1" >&2
-        exit 1
-        ;;
-    esac
-done
-shift
-
-# Process non-option arguments.
-for arg; do
-    echo "arg! \$arg"
-done
-
-FORCE=\$2
-
-kasm_exec() {
-    if [ -n "\$OPT_URL" ]; then
-        URL=\$OPT_URL
-    elif [ -n "\$1" ]; then
-        URL=\$1
-    fi
-
-    if [ -n "\$URL" ]; then
-        bash \${MAXIMIZE_SCRIPT} &
-        \$START_COMMAND \$ARGS \$OPT_URL
-    else
-        echo "No URL specified for exec command. Doing nothing."
-    fi
+error() {
+    log "ERROR: \$*"
+    exit 1
 }
 
-kasm_startup() {
-    if [ -n "\$KASM_URL" ]; then
-        URL=\$KASM_URL
-    elif [ -z "\$URL" ]; then
-        URL=\$LAUNCH_URL
-    fi
+# Default configuration
+: "\${VNC_RESOLUTION:=1920x1080}"
+: "\${VNC_PORT:=6901}"
+: "\${DISPLAY:=:1}"
 
-    if [ -z "\$DISABLE_CUSTOM_STARTUP" ] || [ -n "\$FORCE" ]; then
-        echo "Entering process startup loop"
-        set +x
-        while true; do
-            if ! pgrep -x \$PGREP >/dev/null; then
-                set +e
-                bash \${MAXIMIZE_SCRIPT} &
-                \$START_COMMAND \$ARGS \$URL
-                set -e
-            fi
-            sleep 1
-        done
-        set -x
-    fi
-}
-
-if [ -n "\$GO" ] || [ -n "\$ASSIGN" ]; then
-    kasm_exec
-else
-    kasm_startup
+# Generate random VNC password
+if ! VNC_PASSWORD=\$(head -c 12 /dev/urandom | base64); then
+    error "Failed to generate VNC password"
 fi
-EOF
 
-# Add supervisor configuration
-COPY <<EOF /etc/supervisor/conf.d/supervisord.conf
+# Configure VNC
+mkdir -p "\$HOME/.vnc"
+echo "\$VNC_PASSWORD" | vncpasswd -f > "\$HOME/.vnc/passwd"
+chmod 600 "\$HOME/.vnc/passwd"
+
+# Create supervisor config
+cat > /etc/supervisor/conf.d/windsurf.conf << 'EOSUPERVISOR'
 [supervisord]
 nodaemon=true
+user=root
 logfile=/var/log/supervisor/supervisord.log
 pidfile=/var/run/supervisord.pid
+childlogdir=/var/log/supervisor
 
 [program:kasmvnc]
-command=/usr/local/bin/vncserver :1 -depth 24 -geometry ${VNC_RESOLUTION} -dpi ${VNC_DPI} -websocketPort ${VNC_PORT}
-autorestart=true
+command=/usr/local/bin/kasmvnc --listen %(ENV_VNC_PORT)s --cert /etc/ssl/certs/ssl-cert-snakeoil.pem --key /etc/ssl/private/ssl-cert-snakeoil.key
 user=windsurf
-environment=HOME="${HOME}",USER="windsurf"
+environment=HOME="/home/windsurf",USER="windsurf",DISPLAY="%(ENV_DISPLAY)s",VNC_RESOLUTION="%(ENV_VNC_RESOLUTION)s"
+autorestart=true
+priority=1
+stdout_logfile=/var/log/supervisor/kasmvnc.log
+stderr_logfile=/var/log/supervisor/kasmvnc.err
+startretries=3
+startsecs=5
+stopwaitsecs=10
 
 [program:i3]
-command=i3
-autorestart=true
+command=/usr/bin/i3
 user=windsurf
-environment=HOME="${HOME}",USER="windsurf",DISPLAY=":1"
+environment=HOME="/home/windsurf",USER="windsurf",DISPLAY="%(ENV_DISPLAY)s"
+autorestart=true
+priority=2
+stdout_logfile=/var/log/supervisor/i3.log
+stderr_logfile=/var/log/supervisor/i3.err
+startretries=3
+startsecs=5
+stopwaitsecs=10
 
 [program:windsurf]
-command=${STARTUPDIR}/custom_startup.sh
-autorestart=true
+command=/opt/windsurf/bin/windsurf
 user=windsurf
-environment=HOME="${HOME}",USER="windsurf",DISPLAY=":1"
+environment=HOME="/home/windsurf",USER="windsurf",DISPLAY="%(ENV_DISPLAY)s"
+autorestart=true
+priority=3
+stdout_logfile=/var/log/supervisor/windsurf.log
+stderr_logfile=/var/log/supervisor/windsurf.err
+startretries=3
+startsecs=5
+stopwaitsecs=10
+
+[program:profile-sync]
+command=/usr/local/bin/profile_sync.sh watch
+user=windsurf
+environment=HOME="/home/windsurf",USER="windsurf"
+autorestart=true
+priority=4
+stdout_logfile=/var/log/supervisor/profile-sync.log
+stderr_logfile=/var/log/supervisor/profile-sync.err
+startretries=3
+startsecs=5
+stopwaitsecs=10
+EOSUPERVISOR
+
+# Initialize profile sync
+/usr/local/bin/profile_sync.sh init
+
+# Start pulseaudio for audio support
+pulseaudio --start
+
+# Wait for X server
+log "Waiting for X server..."
+timeout 30 bash -c 'until xdpyinfo -display "\$DISPLAY" >/dev/null 2>&1; do sleep 0.5; done' || error "X server failed to start"
+
+# Configure display resolution
+log "Configuring display resolution to \$VNC_RESOLUTION..."
+if ! xrandr --output "\$(xrandr | grep -w connected | cut -d' ' -f1)" --mode "\$VNC_RESOLUTION"; then
+    log "Warning: Failed to set resolution \$VNC_RESOLUTION, falling back to auto-configuration"
+fi
+
+# Start supervisord
+log "Starting supervisord..."
+exec /usr/bin/supervisord -c /etc/supervisor/supervisord.conf
 EOF
+
+RUN chmod +x /usr/local/bin/entrypoint.sh
+
+# Install Windsurf
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    --mount=type=cache,target=/var/lib/apt,sharing=locked \
+    curl -fsSL "https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/windsurf.gpg" | \
+        gpg --dearmor -o /usr/share/keyrings/windsurf-stable-archive-keyring.gpg && \
+    echo "deb [signed-by=/usr/share/keyrings/windsurf-stable-archive-keyring.gpg arch=amd64] https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/apt stable main" | \
+        tee /etc/apt/sources.list.d/windsurf.list > /dev/null && \
+    apt-get update && \
+    apt-get install -y windsurf && \
+    rm -rf /var/lib/apt/lists/*
+
+# Set up scripts and permissions
+RUN mkdir -p /app && \
+    chown -R windsurf:windsurf "${HOME}" "${STARTUPDIR}" /app
+
+# Expose ports
+EXPOSE ${VNC_PORT}
+
+# Set working directory
+WORKDIR ${HOME}
+
+# Switch to non-root user
+USER windsurf
+
+# Use entrypoint script
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD ["--wait"]
 
 # Create Windsurf config directory and add onboarding config
 RUN mkdir -p "${HOME}/.config/windsurf"
@@ -477,33 +471,3 @@ EOF
 # Create onboarding lock file
 RUN touch "${HOME}/.config/windsurf/onboarding.json.lock" && \
     chown windsurf:windsurf "${HOME}/.config/windsurf/onboarding.json.lock"
-
-# Install Windsurf
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    curl -fsSL "https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/windsurf.gpg" | \
-        gpg --dearmor -o /usr/share/keyrings/windsurf-stable-archive-keyring.gpg && \
-    echo "deb [signed-by=/usr/share/keyrings/windsurf-stable-archive-keyring.gpg arch=amd64] https://windsurf-stable.codeiumdata.com/wVxQEIWkwPUEAGf3/apt stable main" | \
-        tee /etc/apt/sources.list.d/windsurf.list > /dev/null && \
-    apt-get update && \
-    apt-get install -y windsurf && \
-    rm -rf /var/lib/apt/lists/*
-
-# Set up scripts and permissions
-RUN mkdir -p /app && \
-    chmod +x "${STARTUPDIR}"/*.sh && \
-    ln -s "${STARTUPDIR}"/*.sh /usr/local/bin/ && \
-    chown -R windsurf:windsurf "${HOME}" "${STARTUPDIR}" /app
-
-# Expose ports
-EXPOSE ${VNC_PORT}
-
-# Set working directory
-WORKDIR ${HOME}
-
-# Switch to non-root user
-USER windsurf
-
-# Use entrypoint script
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
-CMD ["--wait"]
