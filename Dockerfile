@@ -301,8 +301,20 @@ Section "Screen"
 EndSection
 EOF
 
+# Extract Windsurf desktop file and icon
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    apt-get update && apt-get install -y --no-install-recommends \
+    dpkg-dev \
+    && apt-get download windsurf \
+    && dpkg-deb -x windsurf_*_amd64.deb /tmp/windsurf-extracted \
+    && cp /tmp/windsurf-extracted/usr/share/applications/windsurf.desktop /usr/share/applications/ \
+    && cp /tmp/windsurf-extracted/usr/share/pixmaps/windsurf.png /usr/share/pixmaps/ \
+    && rm -rf /tmp/windsurf-extracted windsurf_*_amd64.deb \
+    && apt-get remove -y dpkg-dev \
+    && apt-get autoremove -y \
+    && rm -rf /var/lib/apt/lists/*
+
 # Copy remaining configuration files
-COPY packages/shared/desktop/windsurf.desktop /usr/share/applications/
 COPY packages/shared/scripts/*.sh "${STARTUPDIR}/"
 
 # Add maximize window script
