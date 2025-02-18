@@ -1,0 +1,69 @@
+version: '3'
+
+vars:
+  CONTAINER_NAME: windsurf
+  REGISTRY: ghcr.io
+  OWNER: drengskapur
+  IMAGE: kasmweb-windsurf
+  TAG: develop
+
+tasks:
+  setup-buildx:
+    desc: Setup Docker Buildx builder
+    cmds:
+      - |
+        if ! docker buildx inspect "windsurf-builder" >/dev/null 2>&1; then
+          docker buildx create --name "windsurf-builder" --driver docker-container --bootstrap
+        fi
+      - docker buildx use windsurf-builder
+
+  build:
+    desc: Build the Docker image
+    deps: [setup-buildx]
+    cmds:
+      - docker buildx bake -f docker-bake.hcl --load develop
+
+  test:
+    desc: Test GitHub Actions workflow locally
+    deps: [setup-act]
+    cmds:
+      - |
+        if [ -f .env ]; then
+          act push -W .github/workflows/ci.yml --env-file .env
+        else
+          act push -W .github/workflows/ci.yml
+        fi
+
+  setup-act:
+    desc: Install act if not present
+    internal: true
+    cmds:
+      - |
+        if ! command -v act &> /dev/null; then
+          mkdir -p "$HOME/.local/bin"
+          curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | bash -s -- -b "$HOME/.local/bin"
+          export PATH="$HOME/.local/bin:$PATH"
+        fi
+
+  stop:
+    desc: Stop and remove the container if running
+    internal: true
+    cmds:
+      - |
+        if docker ps -a --format '{{.Names}}' | grep -q "^{{.CONTAINER_NAME}}$"; then
+          echo "Stopping and removing existing container..."
+          docker stop "{{.CONTAINER_NAME}}" || true
+          docker rm "{{.CONTAINER_NAME}}" || true
+        fi
+
+  run:
+    desc: Run the Docker container
+    deps: [stop]
+    cmds:
+      - >
+        docker run --rm -it
+        --name "{{.CONTAINER_NAME}}"
+        --shm-size=512m
+        -p 6901:6901
+        -e VNC_PW=password
+        {{.REGISTRY}}/{{.OWNER}}/{{.IMAGE}}:{{.TAG}}
