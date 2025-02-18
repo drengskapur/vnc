@@ -7,15 +7,6 @@ FROM ubuntu:22.04@sha256:77906da86b60585ce12215807090eb327e7386c8fafb5402369e421
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 
-# Install base certificates for HTTPS
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    --mount=type=cache,target=/var/lib/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates \
-    locales \
-    && rm -rf /var/lib/apt/lists/* \
-    && locale-gen en_US.UTF-8
-
 ENV DEBIAN_FRONTEND=noninteractive \
     LANG=en_US.UTF-8 \
     LANGUAGE=en_US:en \
@@ -34,53 +25,61 @@ ENV DEBIAN_FRONTEND=noninteractive \
     MAXIMIZE_SCRIPT=/opt/windsurf/startup/maximize_window.sh \
     DEFAULT_ARGS=""
 
-# Create non-root user
-RUN groupadd -g 1000 windsurf && \
-    useradd -m -s /bin/bash -u 1000 -g windsurf windsurf && \
-    usermod -aG sudo windsurf
-
-# Install runtime dependencies
+# Install base packages and configure system
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
     apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
     curl \
     dbus \
     dbus-x11 \
+    dpkg-dev \
     i3 \
     i3status \
-    pulseaudio \
-    supervisor \
-    xterm \
-    && rm -rf /var/lib/apt/lists/*
-
-# Install KasmVNC
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
-    wget \
-    libnss3 \
-    libxcomposite1 \
-    libxdamage1 \
-    libxtst6 \
     libasound2 \
+    libegl1 \
     libfontconfig1 \
+    libgbm1 \
+    libnss3 \
+    libpulse0 \
+    libxcomposite1 \
+    libxcursor1 \
+    libxdamage1 \
     libxkbcommon0 \
     libxrandr2 \
-    libxcursor1 \
-    libpulse0 \
-    libgbm1 \
-    libegl1 \
+    libxtst6 \
+    locales \
+    pulseaudio \
+    rsync \
+    supervisor \
+    wget \
     xauth \
-    x11-utils && \
-    wget -q "https://github.com/kasmtech/KasmVNC/releases/download/v${KASMVNC_VERSION}/kasmvncserver_jammy_${KASMVNC_VERSION}_amd64.deb" -O kasmvnc.deb && \
-    apt-get install -y --no-install-recommends ./kasmvnc.deb && \
-    rm kasmvnc.deb && \
-    rm -rf /var/lib/apt/lists/*
-
-# Create required directories
-RUN mkdir -p "${HOME}/.config/i3" \
+    x11-utils \
+    xterm \
+    && rm -rf /var/lib/apt/lists/* \
+    && locale-gen en_US.UTF-8 \
+    # Create non-root user
+    && groupadd -g 1000 windsurf \
+    && useradd -m -s /bin/bash -u 1000 -g windsurf windsurf \
+    && usermod -aG sudo windsurf \
+    # Create required directories
+    && mkdir -p "${HOME}/.config/i3" \
     "${HOME}/.config/i3status" \
-    "${STARTUPDIR}" && \
-    chown -R windsurf:windsurf "${HOME}" "${STARTUPDIR}"
+    "${STARTUPDIR}" \
+    && chown -R windsurf:windsurf "${HOME}" "${STARTUPDIR}"
+
+# Install KasmVNC and extract Windsurf desktop files
+RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
+    wget -q "https://github.com/kasmtech/KasmVNC/releases/download/v${KASMVNC_VERSION}/kasmvncserver_jammy_${KASMVNC_VERSION}_amd64.deb" -O kasmvnc.deb \
+    && apt-get install -y --no-install-recommends ./kasmvnc.deb \
+    && rm kasmvnc.deb \
+    # Extract Windsurf desktop file and icon
+    && apt-get download windsurf \
+    && dpkg-deb -x windsurf_*_amd64.deb /tmp/windsurf-extracted \
+    && cp /tmp/windsurf-extracted/usr/share/applications/windsurf.desktop /usr/share/applications/ \
+    && cp /tmp/windsurf-extracted/usr/share/pixmaps/windsurf.png /usr/share/pixmaps/ \
+    && rm -rf /tmp/windsurf-extracted windsurf_*_amd64.deb \
+    && rm -rf /var/lib/apt/lists/*
 
 # Add i3 config
 COPY <<EOF ${HOME}/.config/i3/config
@@ -301,19 +300,6 @@ Section "Screen"
 EndSection
 EOF
 
-# Extract Windsurf desktop file and icon
-RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
-    apt-get update && apt-get install -y --no-install-recommends \
-    dpkg-dev \
-    && apt-get download windsurf \
-    && dpkg-deb -x windsurf_*_amd64.deb /tmp/windsurf-extracted \
-    && cp /tmp/windsurf-extracted/usr/share/applications/windsurf.desktop /usr/share/applications/ \
-    && cp /tmp/windsurf-extracted/usr/share/pixmaps/windsurf.png /usr/share/pixmaps/ \
-    && rm -rf /tmp/windsurf-extracted windsurf_*_amd64.deb \
-    && apt-get remove -y dpkg-dev \
-    && apt-get autoremove -y \
-    && rm -rf /var/lib/apt/lists/*
-
 # Configure entrypoint
 COPY <<EOF /usr/local/bin/entrypoint.sh
 #!/bin/bash
@@ -427,6 +413,46 @@ EOF
 
 RUN chmod +x /usr/local/bin/entrypoint.sh
 
+# Add profile sync script
+COPY <<EOF /usr/local/bin/profile_sync.sh
+#!/bin/bash
+set -euo pipefail
+
+PROFILE_DIR="\$HOME/.config/windsurf"
+BACKUP_DIR="/app/profile-backup"
+
+init() {
+    mkdir -p "\$BACKUP_DIR"
+    if [ -d "\$PROFILE_DIR" ]; then
+        cp -r "\$PROFILE_DIR"/* "\$BACKUP_DIR"/ 2>/dev/null || true
+    fi
+}
+
+watch() {
+    while true; do
+        if [ -d "\$PROFILE_DIR" ]; then
+            rsync -av --delete "\$PROFILE_DIR"/ "\$BACKUP_DIR"/ 2>/dev/null || true
+        fi
+        sleep 60
+    done
+}
+
+case "\${1:-}" in
+    init)
+        init
+        ;;
+    watch)
+        watch
+        ;;
+    *)
+        echo "Usage: \$0 {init|watch}"
+        exit 1
+        ;;
+esac
+EOF
+
+RUN chmod +x /usr/local/bin/profile_sync.sh
+
 # Install Windsurf
 RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     --mount=type=cache,target=/var/lib/apt,sharing=locked \
@@ -438,9 +464,11 @@ RUN --mount=type=cache,target=/var/cache/apt,sharing=locked \
     apt-get install -y windsurf && \
     rm -rf /var/lib/apt/lists/*
 
-# Set up scripts and permissions
-RUN mkdir -p /app && \
-    chown -R windsurf:windsurf "${HOME}" "${STARTUPDIR}" /app
+# Final setup and permissions
+RUN mkdir -p /app "${HOME}/.config/windsurf" \
+    && touch "${HOME}/.config/windsurf/onboarding.json.lock" \
+    && chown -R windsurf:windsurf "${HOME}" "${STARTUPDIR}" /app \
+    && chmod +x /usr/local/bin/entrypoint.sh /usr/local/bin/profile_sync.sh
 
 # Expose ports
 EXPOSE ${VNC_PORT}
@@ -456,8 +484,6 @@ ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
 CMD ["--wait"]
 
 # Create Windsurf config directory and add onboarding config
-RUN mkdir -p "${HOME}/.config/windsurf"
-
 COPY <<EOF ${HOME}/.config/windsurf/onboarding.json
 {
   "items": [
@@ -467,7 +493,3 @@ COPY <<EOF ${HOME}/.config/windsurf/onboarding.json
   ]
 }
 EOF
-
-# Create onboarding lock file
-RUN touch "${HOME}/.config/windsurf/onboarding.json.lock" && \
-    chown windsurf:windsurf "${HOME}/.config/windsurf/onboarding.json.lock"
