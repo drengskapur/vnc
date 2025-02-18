@@ -1,6 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Install act if not present (Ubuntu)
+if ! command -v act &> /dev/null; then
+    echo "Installing act..."
+    curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
+fi
+
 # Create builder instance if it doesn't exist
 BUILDER="windsurf-builder"
 if ! docker buildx inspect "$BUILDER" >/dev/null 2>&1; then
