@@ -252,8 +252,56 @@ tztime local {
 }
 EOF
 
+# Configure X11
+COPY <<EOF /etc/X11/xorg.conf
+Section "ServerLayout"
+    Identifier     "Layout0"
+    Screen      0  "Screen0"
+    InputDevice    "Mouse0" "CorePointer"
+    InputDevice    "Keyboard0" "CoreKeyboard"
+EndSection
+
+Section "InputDevice"
+    Identifier  "Keyboard0"
+    Driver      "kbd"
+EndSection
+
+Section "InputDevice"
+    Identifier  "Mouse0"
+    Driver      "mouse"
+    Option      "Protocol" "auto"
+    Option      "Device" "/dev/input/mice"
+    Option      "ZAxisMapping" "4 5 6 7"
+EndSection
+
+Section "Monitor"
+    Identifier  "Monitor0"
+    VendorName  "Unknown"
+    ModelName   "Unknown"
+    HorizSync   30.0 - 85.0
+    VertRefresh 48.0 - 85.0
+    Option      "DPMS"
+EndSection
+
+Section "Device"
+    Identifier  "Card0"
+    Driver      "dummy"
+    VideoRam    256000
+EndSection
+
+Section "Screen"
+    Identifier "Screen0"
+    Device     "Card0"
+    Monitor    "Monitor0"
+    DefaultDepth     24
+    SubSection "Display"
+        Depth     24
+        Modes     "1920x1080"
+    EndSubSection
+EndSection
+EOF
+
 # Copy remaining configuration files
-COPY packages/shared/config/xorg.conf /etc/X11/
 COPY packages/shared/desktop/windsurf.desktop /usr/share/applications/
 COPY packages/shared/scripts/*.sh "${STARTUPDIR}/"
 
