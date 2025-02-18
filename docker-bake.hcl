@@ -10,6 +10,14 @@ variable "VERSION" {
     default = "latest"
 }
 
+variable "REGISTRY" {
+    default = ""
+}
+
+variable "REPOSITORY" {
+    default = ""
+}
+
 # Default target
 group "default" {
     targets = ["windsurf"]
@@ -20,8 +28,8 @@ target "windsurf" {
     dockerfile = "Dockerfile"
     platforms = ["linux/amd64"]
     tags = [
-        "windsurf:${TAG != "" ? TAG : VERSION}",
-        "windsurf:latest"
+        "${TAG != "" ? "${REGISTRY}/${REPOSITORY}:${TAG}" : "${REGISTRY}/${REPOSITORY}:${VERSION}"}",
+        "${REGISTRY}/${REPOSITORY}:latest"
     ]
     args = {
         KASMWEB_IMAGE = "${KASMWEB_IMAGE}"
