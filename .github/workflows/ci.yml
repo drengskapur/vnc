@@ -9,15 +9,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
+permissions:
+  contents: read
+  packages: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
 
     steps:
       - name: Checkout repository
@@ -29,11 +27,13 @@ jobs:
       - name: Log into registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ env.REGISTRY }}
+          registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.REGISTRY_TOKEN_GH_ACTIONS }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and push using build script
-        run: |
-          chmod +x ./build.sh
-          ./build.sh --push dev
+      - name: Build and push
+        uses: docker/bake-action@v4
+        with:
+          files: docker-bake.hcl
+          targets: develop
+          push: true
