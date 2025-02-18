@@ -18,21 +18,6 @@ variable "BASE_IMAGE" {
     default = "kasmweb/desktop:1.16.1"
 }
 
-# Function to get build timestamp
-function "timestamp" {
-    params = []
-    result = formatdate("YYYY-MM-DD'T'hh:mm:ssZ", timestamp())
-}
-
-# Common metadata for all targets
-variable "METADATA" {
-    default = {
-        "org.opencontainers.image.created" = "${timestamp()}"
-        "org.opencontainers.image.source"  = "https://github.com/drengskapur/docker-kasmweb-windsurf"
-        "org.opencontainers.image.version" = "${TAG}"
-    }
-}
-
 # Default target
 group "default" {
     targets = ["develop"]
