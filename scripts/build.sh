@@ -136,9 +136,9 @@ ARGS=()
 # Set tags based on version or tag override
 VERSION=$(detect_version)
 if [[ -n "$TAG" ]]; then
-    TAGS="${REGISTRY}/${REPOSITORY}:${TAG},${REGISTRY}/${REPOSITORY}:develop"
+    TAGS="[\\\"${REGISTRY}/${REPOSITORY}:${TAG}\\\",\\\"${REGISTRY}/${REPOSITORY}:develop\\\"]"
 else
-    TAGS="${REGISTRY}/${REPOSITORY}:${VERSION},${REGISTRY}/${REPOSITORY}:develop"
+    TAGS="[\\\"${REGISTRY}/${REPOSITORY}:${VERSION}\\\",\\\"${REGISTRY}/${REPOSITORY}:develop\\\"]"
 fi
 ARGS+=(--set "*.tags=${TAGS}")
 
@@ -155,9 +155,9 @@ fi
 # Execute build
 log "Building Windsurf image (${COMMAND})"
 if [[ "$COMMAND" == "dev" ]]; then
-    docker buildx bake -f "${PROJECT_ROOT}/docker-bake.hcl" "${ARGS[@]}" dev
+    docker buildx bake --allow=fs=/tmp -f "${PROJECT_ROOT}/docker-bake.hcl" "${ARGS[@]}" dev
 else
-    docker buildx bake -f "${PROJECT_ROOT}/docker-bake.hcl" "${ARGS[@]}" prod
+    docker buildx bake --allow=fs=/tmp -f "${PROJECT_ROOT}/docker-bake.hcl" "${ARGS[@]}" prod
 fi
 
 log "Build completed successfully"
