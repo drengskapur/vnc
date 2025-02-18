@@ -8,6 +8,16 @@ Containerized Ubuntu Desktop with Windsurf IDE and KasmVNC for Browser Access.
 - Automatic window maximization
 - Configurable display settings
 
+## Build
+
+```bash
+# Normal build
+./build.sh
+
+# Test GitHub Actions workflow locally
+./build.sh --test
+```
+
 ## Run
 
 ```bash
@@ -19,3 +29,21 @@ The container is accessible via a browser at: `https://IP_OF_SERVER:6901`
 **Access Credentials:**
 - Username: `kasm_user`
 - Password: `password`
+
+## Local Development
+
+### Testing GitHub Actions
+
+You can test the CI workflow locally using [act](https://github.com/nektos/act). Install it first:
+
+```bash
+# macOS
+brew install act
+
+# Linux
+curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo bash
+```
+
+Then run the workflow test:
+```bash
+./build.sh --test

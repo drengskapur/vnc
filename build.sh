@@ -10,5 +10,11 @@ fi
 # Use the builder
 docker buildx use "$BUILDER"
 
-# Execute build
-docker buildx bake -f docker-bake.hcl --load develop
+# Check if --test flag is provided
+if [[ "${1:-}" == "--test" ]]; then
+    # Test workflow using act
+    act push -W .github/workflows/ci.yml
+else
+    # Execute build
+    docker buildx bake -f docker-bake.hcl --load develop
+fi
