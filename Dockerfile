@@ -368,7 +368,7 @@ fi
 
 # Configure VNC
 mkdir -p "\$HOME/.vnc"
-echo "\$VNC_PASSWORD" | vncpasswd -f > "\$HOME/.vnc/passwd"
+echo -e "\$VNC_PASSWORD\n\$VNC_PASSWORD\n" | vncpasswd
 chmod 600 "\$HOME/.vnc/passwd"
 
 # Create supervisor config
