@@ -1,10 +1,14 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# Get project root directory (parent of scripts directory)
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
 # Script configuration
 REGISTRY="${REGISTRY:-ghcr.io}"
 REPOSITORY="${REPOSITORY:-drengskapur/kasmweb-windsurf}"
 PLATFORMS="${PLATFORMS:-linux/amd64}"
+COMMAND="${COMMAND:-dev}"  # Set dev as default command
 
 # Logging functions
 log() {
@@ -19,12 +23,12 @@ error() {
 # Help message
 show_help() {
     cat << EOF
-Usage: $(basename "$0") [OPTIONS] COMMAND
+Usage: $(basename "$0") [OPTIONS] [COMMAND]
 
 Build Windsurf Docker images using docker buildx bake.
 
 Commands:
-    dev         Build development image with local caching
+    dev         Build development image with local caching (default)
     prod        Build production image with registry caching
     help        Show this help message
 
@@ -40,6 +44,20 @@ Environment variables:
     REPOSITORY  Container repository name
     PLATFORMS   Target platforms (comma-separated)
     TAG         Override version tag
+    COMMAND     Build command (dev or prod)
+
+Examples:
+    # Default development build
+    $(basename "$0")
+
+    # Production build and push to registry
+    $(basename "$0") -p prod
+
+    # Build with custom tag
+    $(basename "$0") -t v1.3.4
+
+    # Build for multiple platforms
+    $(basename "$0") --platforms "linux/amd64,linux/arm64" prod
 EOF
 }
 
@@ -78,11 +96,6 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
-
-# Ensure command is provided
-if [[ -z "${COMMAND:-}" ]]; then
-    error "No command specified. Use -h for help."
-fi
 
 # Show help if requested
 if [[ "$COMMAND" == "help" ]]; then
@@ -126,9 +139,9 @@ fi
 # Execute build
 log "Building Windsurf image (${COMMAND})"
 if [[ "$COMMAND" == "dev" ]]; then
-    docker buildx bake "${ARGS[@]}" dev
+    docker buildx bake -f "${PROJECT_ROOT}/docker-bake.hcl" "${ARGS[@]}" dev
 else
-    docker buildx bake "${ARGS[@]}" prod
+    docker buildx bake -f "${PROJECT_ROOT}/docker-bake.hcl" "${ARGS[@]}" prod
 fi
 
 log "Build completed successfully"
