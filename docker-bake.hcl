@@ -3,7 +3,21 @@ variable "KASMWEB_IMAGE" {
 }
 
 variable "TAG" {
-    default = "latest"
+    default = ""
+}
+
+# Get Windsurf version from package
+function "get_version" {
+    params = []
+    result = regex_replace(
+        regex_replace(
+            run("apt-cache show windsurf | grep Version | cut -d' ' -f2 | cut -d'-' -f1"),
+            "\n",
+            ""
+        ),
+        "\r",
+        ""
+    )
 }
 
 # Default target
@@ -15,7 +29,10 @@ group "default" {
 target "windsurf" {
     dockerfile = "Dockerfile"
     platforms = ["linux/amd64"]
-    tags = ["windsurf:${TAG}"]
+    tags = [
+        "windsurf:${TAG != "" ? TAG : get_version()}",
+        "windsurf:latest"
+    ]
     args = {
         KASMWEB_IMAGE = "${KASMWEB_IMAGE}"
     }
