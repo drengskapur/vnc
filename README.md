@@ -47,3 +47,14 @@ curl -s https://raw.githubusercontent.com/nektos/act/master/install.sh | sudo ba
 Then run the workflow test:
 ```bash
 ./build.sh --test
+```
+
+You can also create a `.env` file to provide environment variables for local testing:
+
+```bash
+# .env example
+OWNER=myorg
+TAG=test
+```
+
+The `.env` file will be automatically loaded when running `./build.sh --test`.
