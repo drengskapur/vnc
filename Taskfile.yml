@@ -55,9 +55,8 @@ tasks:
     cmds:
       - |
         echo "Starting build process..."
-        docker buildx bake \
+        BUILDX_PROGRESS=plain docker buildx bake \
           -f docker-bake.hcl \
-          --set "*.PROGRESS_MODE=plain" \
           --set "*.CACHE_MODE=max" \
           --set "*.PUSH_IMAGE=false" \
           develop
@@ -68,9 +67,8 @@ tasks:
     cmds:
       - |
         echo "Building and pushing to registry..."
-        docker buildx bake \
+        BUILDX_PROGRESS=plain docker buildx bake \
           -f docker-bake.hcl \
-          --set "*.PROGRESS_MODE=plain" \
           --set "*.CACHE_MODE=max" \
           --set "*.PUSH_IMAGE=true" \
           develop
