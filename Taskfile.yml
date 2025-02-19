@@ -3,6 +3,7 @@ version: '3'
 vars:
   BUILDER: windsurf-builder
   CONTAINER_NAME: windsurf
+  CACHE_DIR: .buildx-cache
 
 tasks:
   setup-act:
@@ -18,17 +19,61 @@ tasks:
   setup-builder:
     internal: true
     cmds:
+      - mkdir -p "{{.CACHE_DIR}}"
+      - touch "{{.CACHE_DIR}}/index.json"
       - |
         if ! docker buildx inspect "{{.BUILDER}}" >/dev/null 2>&1; then
-          docker buildx create --name "{{.BUILDER}}" --driver docker-container --bootstrap
+          docker buildx create --name "{{.BUILDER}}" \
+            --driver docker-container \
+            --driver-opt "image=moby/buildkit:latest" \
+            --driver-opt "network=host" \
+            --config='
+              [worker.oci]
+                max-parallel-jobs = 4
+              [worker.containerd]
+                max-parallel-jobs = 4' \
+            --bootstrap
         fi
       - docker buildx use "{{.BUILDER}}"
 
+  setup-auth:
+    desc: Setup GitHub Container Registry authentication
+    cmds:
+      - |
+        if [ -z "$GITHUB_TOKEN" ]; then
+          echo "Error: GITHUB_TOKEN environment variable is not set"
+          exit 1
+        fi
+        if [ -z "$GITHUB_USER" ]; then
+          GITHUB_USER="drengskapur"
+        fi
+        echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_USER" --password-stdin
+
   build:
     desc: Build the Docker image
-    deps: [setup-builder]
+    deps: [setup-builder, setup-auth]
     cmds:
-      - docker buildx bake -f docker-bake.hcl --load develop
+      - |
+        echo "Starting build process..."
+        docker buildx bake \
+          -f docker-bake.hcl \
+          --set "*.PROGRESS_MODE=plain" \
+          --set "*.CACHE_MODE=max" \
+          --set "*.PUSH_IMAGE=false" \
+          develop
+
+  push:
+    desc: Build and push the Docker image to registry
+    deps: [setup-builder, setup-auth]
+    cmds:
+      - |
+        echo "Building and pushing to registry..."
+        docker buildx bake \
+          -f docker-bake.hcl \
+          --set "*.PROGRESS_MODE=plain" \
+          --set "*.CACHE_MODE=max" \
+          --set "*.PUSH_IMAGE=true" \
+          develop
 
   build:test:
     desc: Run the test workflow using act
@@ -64,3 +109,37 @@ tasks:
         -p 6901:6901
         -e VNC_PW=password
         ghcr.io/drengskapur/kasmweb-windsurf:develop
+
+  install-direnv:
+    desc: "Install direnv"
+    vars:
+      HOME:
+        sh: echo $HOME
+      COMMAND_PREFIX:
+        sh: if [ "$(id -u)" != "0" ]; then echo "sudo"; fi
+      LATEST_VERSION:
+        sh: curl -s https://api.github.com/repos/direnv/direnv/releases/latest | jq -r '.tag_name | ltrimstr("v")'
+      DOWNLOAD_URL: "https://github.com/direnv/direnv/releases/download/v{{.LATEST_VERSION}}/direnv.linux-amd64"
+    run: once
+    status:
+      - command -v direnv
+    cmds:
+      - |
+        {{.COMMAND_PREFIX}} apt-get update
+      - |
+        {{.COMMAND_PREFIX}} apt-get install -y jq
+      - curl -sLo direnv "{{.DOWNLOAD_URL}}"
+      - |
+        {{.COMMAND_PREFIX}} chmod 755 direnv
+      - |
+        {{.COMMAND_PREFIX}} mv direnv /usr/local/bin/direnv
+      - |
+        {{.COMMAND_PREFIX}} chown root:root /usr/local/bin/direnv
+      - |
+        if ! grep -q 'eval "$(direnv hook bash)"' "{{.HOME}}/.bashrc"; then
+          echo 'eval "$(direnv hook bash)"' >> "{{.HOME}}/.bashrc"
+        fi
+      - echo "dotenv" > {{.USER_WORKING_DIR}}/.envrc
+      - touch {{.USER_WORKING_DIR}}/.env
+      - direnv allow {{.USER_WORKING_DIR}}/.envrc
+      - /usr/local/bin/direnv --version
