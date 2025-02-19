@@ -15,4 +15,6 @@ if ! command -v task &> /dev/null; then
     fi
 fi
 
-echo "Setup complete. Make sure $HOME/.local/bin is in your PATH."
+# Install direnv - manage environment variables per directory
+# docs: https://direnv.net/
+task install-direnv
