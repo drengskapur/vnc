@@ -1,3 +1,9 @@
+.buildx-cache
+.buildx-cache-*
 .cache
 .env
+.envrc
+*.swo
+*.swp
+*~
 bin
