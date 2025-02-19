@@ -43,8 +43,8 @@ variable "CACHE_MODE" {
 }
 
 # Build behavior control
-variable "PUSH_IMAGE" {
-    default = "false"  # Set to "true" to push to registry, "false" for local builds
+variable "push" {
+    default = false  # Set to true to push to registry, false for local builds
 }
 
 # --------------------------------------------------------------------------- #
@@ -54,16 +54,6 @@ variable "PUSH_IMAGE" {
 target "settings" {
     context = "."
     platforms = ["linux/amd64"]  # x86_64 platform support
-    
-    # Cache configuration for faster builds
-    cache-from = ["type=local,src=${CACHE_DIR}"]
-    cache-to = ["type=local,dest=${CACHE_DIR},mode=${CACHE_MODE}"]
-    
-    # Default to local docker output
-    output = ["type=docker"]
-    
-    # Don't cache package fetching steps
-    no-cache-filter = ["fetch-deps"]
     
     # Use host network for better performance
     network = "host"
@@ -87,9 +77,9 @@ target "develop" {
     args = {
         BASE_IMAGE = "${BASE_IMAGE}"
     }
-    
-    # Conditional output based on push flag
-    output = PUSH_IMAGE == "true" ? ["type=registry"] : ["type=docker"]
+
+    # Push configuration
+    push = "${push}"
 }
 
 # Default group - what gets built when no target is specified

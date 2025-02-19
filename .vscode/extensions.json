@@ -4,6 +4,7 @@
         "github.copilot",
         "github.copilot-chat",
         "redhat.vscode-yaml",
-        "task.vscode-task"
+        "task.vscode-task",
+        "tamasfe.even-better-toml"
     ]
 }

@@ -1,5 +1,8 @@
 version: '3'
 
+env:
+  BUILDKIT_CONFIG: .buildkit/buildkitd.toml
+
 vars:
   BUILDER: windsurf-builder
   CONTAINER_NAME: windsurf
@@ -20,18 +23,32 @@ tasks:
     internal: true
     cmds:
       - mkdir -p "{{.CACHE_DIR}}"
-      - touch "{{.CACHE_DIR}}/index.json"
+      - |
+        echo '{
+          "version": 2,
+          "manifests": [
+            {
+              "mediaType": "application/vnd.oci.image.manifest.v1+json",
+              "digest": "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+              "size": 0,
+              "platform": {
+                "architecture": "amd64",
+                "os": "linux"
+              }
+            }
+          ],
+          "mediaType": "application/vnd.oci.image.index.v1+json",
+          "annotations": {
+            "org.opencontainers.image.ref.name": "latest"
+          }
+        }' > "{{.CACHE_DIR}}/index.json"
       - |
         if ! docker buildx inspect "{{.BUILDER}}" >/dev/null 2>&1; then
           docker buildx create --name "{{.BUILDER}}" \
             --driver docker-container \
             --driver-opt "image=moby/buildkit:latest" \
             --driver-opt "network=host" \
-            --config='
-              [worker.oci]
-                max-parallel-jobs = 4
-              [worker.containerd]
-                max-parallel-jobs = 4' \
+            --config="${BUILDKIT_CONFIG}" \
             --bootstrap
         fi
       - docker buildx use "{{.BUILDER}}"
@@ -56,9 +73,11 @@ tasks:
       - |
         echo "Starting build process..."
         BUILDX_PROGRESS=plain docker buildx bake \
+          --allow=network.host \
           -f docker-bake.hcl \
-          --set "*.CACHE_MODE=max" \
-          --set "*.PUSH_IMAGE=false" \
+          --set "*.cache-from=type=registry,ref=ghcr.io/drengskapur/kasmweb-windsurf:cache" \
+          --set "*.cache-to=type=registry,ref=ghcr.io/drengskapur/kasmweb-windsurf:cache,mode=max" \
+          --load \
           develop
 
   push:
@@ -68,9 +87,11 @@ tasks:
       - |
         echo "Building and pushing to registry..."
         BUILDX_PROGRESS=plain docker buildx bake \
+          --allow=network.host \
           -f docker-bake.hcl \
-          --set "*.CACHE_MODE=max" \
-          --set "*.PUSH_IMAGE=true" \
+          --set "*.cache-from=type=registry,ref=ghcr.io/drengskapur/kasmweb-windsurf:cache" \
+          --set "*.cache-to=type=registry,ref=ghcr.io/drengskapur/kasmweb-windsurf:cache,mode=max" \
+          --set "*.push=true" \
           develop
 
   build:test:

@@ -1,0 +1,19 @@
+[worker.oci]
+  max-parallel-jobs = 4
+  gc = true
+  gckeepstorage = 20000
+  content-ttl.regular = "168h"   # 7 days
+  content-ttl.shared = "720h"    # 30 days
+
+[worker.containerd]
+  max-parallel-jobs = 4
+  gc = true
+  gckeepstorage = 20000
+  content-ttl.regular = "168h"   # 7 days
+  content-ttl.shared = "720h"    # 30 days
+
+[registry."docker.io"]
+mirrors = ["mirror.gcr.io"]
+
+[registry."gitlab.com"]
+maxretries = 5
