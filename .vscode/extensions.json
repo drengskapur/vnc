@@ -1,0 +1,10 @@
+{
+    "recommendations": [
+        "hashicorp.hcl",
+        "github.copilot",
+        "github.copilot-chat",
+        "redhat.vscode-yaml",
+        "task.vscode-task",
+        "tamasfe.even-better-toml"
+    ]
+}

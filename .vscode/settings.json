@@ -1,0 +1,9 @@
+{
+    "yaml.schemas": {
+        "https://json.schemastore.org/github-workflow.json": [
+            "/.github/workflows/*.yml",
+            "/.github/workflows/*.yaml",
+            "file:///workspaces/docker-kasmweb-windsurf/.github/workflows/ci.yml"
+        ]
+    }
+}
