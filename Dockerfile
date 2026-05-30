@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-ARG BASE_IMAGE=kasmweb/desktop:1.16.1
+ARG BASE_IMAGE=kasmweb/desktop:1.19.0
 FROM ${BASE_IMAGE} AS base
 
 USER root
